@@ -20,6 +20,7 @@ namespace SQL_Format
 
 		public static string Column2TypeStr(ColumnDefinition columnDefinition)
 		{
+			if (columnDefinition.DataType == null) return null;
 			string result = columnDefinition.DataType.Name.Identifiers[0].Value.ToLowerInvariant();
 			//+		Name	{Microsoft.SqlServer.TransactSql.ScriptDom.SchemaObjectName}	Microsoft.SqlServer.TransactSql.ScriptDom.SchemaObjectName
 			if (columnDefinition.DataType is ParameterizedDataTypeReference)

@@ -120,7 +120,11 @@ namespace SQL_Format
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					result.Append($"{columnIdent}{sep}{optionAlliasDest}{ident}{sColumnSeparator}");
+					if (bOptionInline)
+						result.Append($"{sep}{optionAlliasDest}{ident}");
+					else
+						result.Append($"{columnIdent}{sep}{optionAlliasDest}{ident}{sColumnSeparator}");
+
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 			}
@@ -133,7 +137,10 @@ namespace SQL_Format
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					result.Append($"{columnIdent}{sep}{optionAllias}{ident}{sColumnSeparator}");
+					if (bOptionInline)
+						result.Append($"{sep}{optionAllias}{ident}");
+					else
+						result.Append($"{columnIdent}{sep}{optionAllias}{ident}{sColumnSeparator}");
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 				result.Append($"{Environment.NewLine}");

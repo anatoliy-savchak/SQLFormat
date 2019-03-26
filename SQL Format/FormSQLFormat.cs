@@ -81,25 +81,38 @@ namespace SQL_Format
 			{
 
 				IList<ParseError> errors;
-				TSql100Parser parser = new TSql100Parser(true);
+				TSql150Parser parser = new TSql150Parser(true);
 				TSqlScript script = parser.Parse(sr, out errors) as TSqlScript;
 
-				foreach(TSqlBatch b in script.Batches)
+				CreateTableStatement cts = null;
+				foreach (TSqlBatch b in script.Batches)
 				{
 					foreach(TSqlStatement statement in b.Statements)
 					{
 						if (!(statement is CreateTableStatement)) continue;
 
-						CreateTableStatement cts = (CreateTableStatement)statement;
+						cts = (CreateTableStatement)statement;
 
-						foreach(var i in items)
-						{
-							string s = i.Item2.Translate(cts.Definition, i.Item1);
-							(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = s;
-						}
 						break;
 					}
 				}
+
+				foreach (var i in items)
+				{
+					(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = "";
+					if (cts != null)
+					{
+						string s = i.Item2.Translate(cts.Definition, i.Item1);
+						(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = s;
+					} else
+					{
+						if ((errors != null) && (errors.Count > 0))
+						{
+							(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = errors[0].Message;
+						}
+					}
+				}
+
 			}
 		}
 
