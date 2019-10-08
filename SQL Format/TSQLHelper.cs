@@ -11,11 +11,21 @@ namespace SQL_Format
 	{
 		public static string Identifier2Value(Identifier identifier)
 		{
+			if (identifier == null) return null;
 			if (identifier.QuoteType == QuoteType.SquareBracket)
 			{
 				return $"[{identifier.Value}]";
 			}
 			return identifier.Value;
+		}
+
+		public static string Identifiers2Value(IList<Identifier> identifiers)
+		{
+			if ((identifiers == null) || (identifiers.Count == 0)) return null;
+			string result = Identifier2Value(identifiers[0]);
+			for(int i = 1; i < identifiers.Count; i++)
+				result = $"{result}.{Identifier2Value(identifiers[i])}";
+			return result;
 		}
 
 		public static string Column2TypeStr(ColumnDefinition columnDefinition)

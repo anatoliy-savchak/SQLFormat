@@ -10,8 +10,13 @@ namespace SQL_Format
 {
 	public abstract class SQLTranslator
 	{
-		public abstract string Translate(TableDefinition tableDefinition, object options);
+		public virtual string Translate(TableDefinition tableDefinition, object options) { return null; }
 		public abstract string GetCaption();
 		public abstract void SetupOptionsContent(Control Parent, EventHandler changedHandler);
+
+		public virtual string TranslateExt(CreateTableStatement createTableStatement, object options)
+		{
+			return Translate(createTableStatement.Definition, options);
+		}
 	}
 }

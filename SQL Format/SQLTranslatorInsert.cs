@@ -71,8 +71,9 @@ namespace SQL_Format
 
 		}
 
-		public override string Translate(TableDefinition tableDefinition, object options)
+		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
 		{
+			TableDefinition tableDefinition = createTableStatement.Definition;
 			string optionAllias0 = null;
 			if (options is Control)
 			{
@@ -102,7 +103,7 @@ namespace SQL_Format
 				}
 			}
 			string sColumnSeparator = Environment.NewLine;
-			if (bOptionInline) sColumnSeparator = " ";
+			if (bOptionInline) sColumnSeparator = null;
 
 			bool bOptionExplicitNames = false;
 			if (options is Control)
@@ -114,8 +115,10 @@ namespace SQL_Format
 				}
 			}
 
+			string keywordSep = bOptionInline ? " " : Environment.NewLine;
 			string optionAllias = optionAllias0;
 			string optionAlliasDest = optionAlliasDest0;
+			string tableName = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
 			if (!String.IsNullOrEmpty(optionAllias)) optionAllias = optionAllias + '.';
 			if (!String.IsNullOrEmpty(optionAlliasDest)) optionAlliasDest = optionAlliasDest + '.';
 			string columnIdent = "\t";
@@ -125,19 +128,21 @@ namespace SQL_Format
 			string sep = null;
 			// insert into
 			{
-				result.Append($"insert into {optionAlliasDest0}({sColumnSeparator}");
+				result.Append($"insert into {tableName}({sColumnSeparator}");
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					result.Append($"{columnIdent}{sep}{ident}{sColumnSeparator}");
+					//if (!bOptionInline)
+						result.Append($"{columnIdent}{sep}{ident}{sColumnSeparator}");
+					//else result.Append($"{sep}{ident}{sColumnSeparator}");
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 				result.Append($"){Environment.NewLine}");
 			}
 			// select
 			{
-				result.Append($"select{sColumnSeparator}");
+				result.Append($"select{keywordSep}");
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
@@ -151,7 +156,8 @@ namespace SQL_Format
 					}
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
-				result.Append($"from {optionAllias0}{Environment.NewLine}");
+				
+				result.Append($"{keywordSep}from {optionAllias0}{Environment.NewLine}");
 			}
 			return result.ToString();
 		}

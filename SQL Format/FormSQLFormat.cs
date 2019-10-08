@@ -102,7 +102,8 @@ namespace SQL_Format
 					(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = "";
 					if (cts != null)
 					{
-						string s = i.Item2.Translate(cts.Definition, i.Item1);
+						//string s = i.Item2.Translate(cts.Definition, i.Item1);
+						string s = i.Item2.TranslateExt(cts, i.Item1);
 						(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = s;
 					} else
 					{

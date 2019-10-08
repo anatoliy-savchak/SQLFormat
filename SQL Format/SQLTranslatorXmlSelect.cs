@@ -50,6 +50,21 @@ namespace SQL_Format
 				Parent.Controls.Add(tbAlias);
 			}
 
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "Safe";
+				checkBox.Name = "option_safe";
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "C Columns";
+				checkBox.Name = "option_ccolumns";
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
 		}
 
 		public override string Translate(TableDefinition tableDefinition, object options)
@@ -73,17 +88,50 @@ namespace SQL_Format
 				}
 			}
 
+			bool optionsSafe = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_safe", true);
+				if (r.Length > 0)
+				{
+					optionsSafe = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool option_ccolumns = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_ccolumns", true);
+				if (r.Length > 0)
+				{
+					option_ccolumns = (r[0] as CheckBox).Checked;
+				}
+			}
+
 			StringBuilder result = new StringBuilder();
 			string sep = null;
 			result.Append($"select{Environment.NewLine}");
 			// rows
 			{
 				sep = null;
+				int iter = -1;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					iter++;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					string typ = TSQLHelper.Column2TypeStr(columnDefinition);
-					result.Append($"\t{sep}{ident} = {optionRowAlias0}.value('@{ident}', '{typ}'){Environment.NewLine}");
+					string attName = ident;
+					if (option_ccolumns) {
+						attName = $"c{iter}";
+					}
+					if (optionsSafe)
+					{
+						result.Append($"\t{sep}{ident} = case when {optionRowAlias0}.value('@{attName}', 'nvarchar(max)') = \'NULL\' then null else {optionRowAlias0}.value('@{attName}', '{typ}') end{Environment.NewLine}");
+					}
+					else
+					{
+						result.Append($"\t{sep}{ident} = {optionRowAlias0}.value('@{attName}', '{typ}'){Environment.NewLine}");
+					}
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 			}
