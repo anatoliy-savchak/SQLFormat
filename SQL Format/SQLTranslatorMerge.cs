@@ -49,10 +49,38 @@ namespace SQL_Format
 				tbAlias.TextChanged += changedHandler;
 				Parent.Controls.Add(tbAlias);
 			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "insert only";
+				checkBox.Name = "option_insertonly";
+				checkBox.Checked = false;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "use star in CTE";
+				checkBox.Name = "use_star";
+				checkBox.Checked = false;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+			{
+
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "use intesect";
+				checkBox.Name = "use_intesect";
+				checkBox.Checked = false;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
 		}
 
-		public override string Translate(TableDefinition tableDefinition, object options)
+		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
 		{
+			TableDefinition tableDefinition = createTableStatement.Definition;
 			string optionAllias0 = null;
 			if (options is Control)
 			{
@@ -72,10 +100,42 @@ namespace SQL_Format
 				}
 			}
 
+			bool option_insertonly = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_insertonly", true);
+				if (r.Length > 0)
+				{
+					option_insertonly = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool use_star = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("use_star", true);
+				if (r.Length > 0)
+				{
+					use_star = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool use_intesect = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("use_intesect", true);
+				if (r.Length > 0)
+				{
+					use_intesect = (r[0] as CheckBox).Checked;
+				}
+			}
+
 			string optionAllias = optionAllias0;
 			string optionAlliasDest = optionAlliasDest0;
 			if (!String.IsNullOrEmpty(optionAllias)) optionAllias = optionAllias + '.';
 			if (!String.IsNullOrEmpty(optionAlliasDest)) optionAlliasDest = optionAlliasDest + '.';
+			string tableName = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+			
 
 			string firstColumnIdent = null;
 
@@ -84,37 +144,71 @@ namespace SQL_Format
 			// with src as
 			{
 				result.Append($";with src as ({Environment.NewLine}");
-				result.Append($"\tselect{Environment.NewLine}");
-				sep = null;
-				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				if (!use_star)
 				{
-					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					if (String.IsNullOrEmpty(firstColumnIdent)) firstColumnIdent = ident;
-					result.Append($"\t\t{sep}{ident} = {optionAllias}{ident}{Environment.NewLine}");
-					if (String.IsNullOrEmpty(sep)) sep = ", ";
+					result.Append($"\tselect{Environment.NewLine}");
+					sep = null;
+					foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+					{
+						string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+						if (String.IsNullOrEmpty(firstColumnIdent)) firstColumnIdent = ident;
+						result.Append($"\t\t{sep}{ident} = {optionAllias}{ident}{Environment.NewLine}");
+						if (String.IsNullOrEmpty(sep)) sep = ", ";
+					}
+				} else
+				{
+					result.Append($"\tselect *{Environment.NewLine}");
 				}
-				result.Append($"\tfrom {optionAllias0}{Environment.NewLine}");
+				result.Append($"\tfrom {tableName} {optionAllias0}{Environment.NewLine}");
 				result.Append($"){Environment.NewLine}");
 			}
 			// , targ as
 			{
 				result.Append($", targ as ({Environment.NewLine}");
-				result.Append($"\tselect{Environment.NewLine}");
-				sep = null;
-				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				if (!use_star)
 				{
-					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					result.Append($"\t\t{sep}{optionAlliasDest}{ident}{Environment.NewLine}");
-					if (String.IsNullOrEmpty(sep)) sep = ", ";
+
+					result.Append($"\tselect{Environment.NewLine}");
+					sep = null;
+					foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+					{
+						string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+						result.Append($"\t\t{sep}{optionAlliasDest}{ident}{Environment.NewLine}");
+						if (String.IsNullOrEmpty(sep)) sep = ", ";
+					}
 				}
-				result.Append($"\tfrom {optionAlliasDest0}{Environment.NewLine}");
+				else
+				{
+					result.Append($"\tselect *{Environment.NewLine}");
+				}
+				result.Append($"\tfrom {tableName} {optionAlliasDest0}{Environment.NewLine}");
 				result.Append($"){Environment.NewLine}");
 			}
 			//merge
 			{
 				result.Append($"merge targ as {optionAlliasDest0}{Environment.NewLine}");
 				result.Append($"using src as {optionAllias0}{Environment.NewLine}");
-				result.Append($"on ({optionAlliasDest}{firstColumnIdent} = {optionAllias}{firstColumnIdent}){Environment.NewLine}");
+				sep = null;
+				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				{
+					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+					if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition)) continue;
+					if (String.IsNullOrEmpty(sep)) {
+						sep = ", ";
+						result.Append($"on (");
+					} else
+					{
+						result.Append($" and ");
+					}
+					result.Append($"{optionAlliasDest}{ident} = {optionAllias}{ident}");
+				}
+				if (String.IsNullOrEmpty(sep))
+				{
+					result.Append($"on ({optionAlliasDest}{firstColumnIdent} = {optionAllias}{firstColumnIdent}){Environment.NewLine}");
+				} else
+				{
+					result.Append($"){Environment.NewLine}");
+				}
 			}
 			//insert
 			{
@@ -123,6 +217,7 @@ namespace SQL_Format
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					result.Append($"\t\t{sep}{ident}{Environment.NewLine}");
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
@@ -132,6 +227,7 @@ namespace SQL_Format
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					result.Append($"\t\t{sep}{optionAllias}{ident}{Environment.NewLine}");
 					if (string.IsNullOrEmpty(sep)) sep = ", ";
@@ -139,12 +235,45 @@ namespace SQL_Format
 				result.Append($"\t){Environment.NewLine}");
 			}
 			//update
+			if (!option_insertonly)
 			{
-				result.Append($"when matched then{Environment.NewLine}");
+				if (use_intesect)
+				{
+					result.Append($"when matched and not exists({Environment.NewLine}");
+					result.Append($"\tselect ");
+					sep = null;
+					foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+					{
+						if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
+						if (TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition)) continue;
+						string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+						result.Append($"{sep}{optionAlliasDest}{ident}");
+						if (String.IsNullOrEmpty(sep)) sep = ", ";
+					}
+					result.Append($"{Environment.NewLine}");
+					result.Append($"\tintersect{Environment.NewLine}");
+					result.Append($"\tselect ");
+					sep = null;
+					foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+					{
+						if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
+						if (TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition)) continue;
+						string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+						result.Append($"{sep}{optionAllias}{ident}");
+						if (String.IsNullOrEmpty(sep)) sep = ", ";
+					}
+					result.Append($"{Environment.NewLine}) then{Environment.NewLine}");
+				}
+				else
+				{
+					result.Append($"when matched then{Environment.NewLine}");
+				}
 				result.Append($"\tupdate set{Environment.NewLine}");
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
+					if (TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					result.Append($"\t\t{sep}{ident} = {optionAllias}{ident}{Environment.NewLine}");
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
@@ -152,6 +281,7 @@ namespace SQL_Format
 			}
 
 			//delete
+			if (!option_insertonly)
 			{
 				result.Append($"when not matched by source then{Environment.NewLine}");
 				result.Append($"\tdelete{Environment.NewLine}");

@@ -69,6 +69,32 @@ namespace SQL_Format
 				Parent.Controls.Add(checkBox);
 			}
 
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "values";
+				checkBox.Name = "option_values";
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "include default columns";
+				checkBox.Name = "option_default";
+				checkBox.Checked = true;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "not already exists";
+				checkBox.Name = "option_notalready";
+				checkBox.Checked = false;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+			
 		}
 
 		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
@@ -115,6 +141,36 @@ namespace SQL_Format
 				}
 			}
 
+			bool bOptionValues = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_values", true);
+				if (r.Length > 0)
+				{
+					bOptionValues = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool bOptionDefault = true;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_default", true);
+				if (r.Length > 0)
+				{
+					bOptionDefault = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool bNotAlready = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_notalready", true);
+				if (r.Length > 0)
+				{
+					bNotAlready = (r[0] as CheckBox).Checked;
+				}
+			}
+
 			string keywordSep = bOptionInline ? " " : Environment.NewLine;
 			string optionAllias = optionAllias0;
 			string optionAlliasDest = optionAlliasDest0;
@@ -132,6 +188,7 @@ namespace SQL_Format
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					//if (!bOptionInline)
 						result.Append($"{columnIdent}{sep}{ident}{sColumnSeparator}");
@@ -140,12 +197,32 @@ namespace SQL_Format
 				}
 				result.Append($"){Environment.NewLine}");
 			}
+
+			if (bOptionValues)
+			{
+				result.Append($"values(");
+				sep = null;
+				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				{
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
+					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+					if (bOptionExplicitNames)
+					{
+						result.Append($"{columnIdent}{sep}{optionAllias}{ident} /*{ident}*/{sColumnSeparator}");
+					}
+					else result.Append($"{columnIdent}{sep}{optionAllias}{ident}{sColumnSeparator}");
+					if (String.IsNullOrEmpty(sep)) sep = ", ";
+				}
+				result.Append($"){Environment.NewLine}");
+			}
+			else
 			// select
 			{
 				result.Append($"select{keywordSep}");
 				sep = null;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					if (bOptionExplicitNames)
 					{
@@ -159,6 +236,25 @@ namespace SQL_Format
 				
 				result.Append($"{keywordSep}from {optionAllias0}{Environment.NewLine}");
 			}
+			
+
+			if (bNotAlready)
+			{
+				result.Append($"where not exists(select 1 from {tableName} t with (nolock) where");
+				int i = 0;
+				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				{
+					i++;
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
+					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+					if (i > 1)
+						result.Append($" and");
+					result.Append($" t.{ident} = {optionAllias}{ident}");
+				}
+				result.Append($")");
+			}
+
+			result.Append($";");
 			return result.ToString();
 		}
 	}

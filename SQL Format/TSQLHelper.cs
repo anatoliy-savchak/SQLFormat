@@ -12,10 +12,12 @@ namespace SQL_Format
 		public static string Identifier2Value(Identifier identifier)
 		{
 			if (identifier == null) return null;
+			/*
 			if (identifier.QuoteType == QuoteType.SquareBracket)
 			{
 				return $"[{identifier.Value}]";
 			}
+			*/
 			return identifier.Value;
 		}
 
@@ -26,6 +28,12 @@ namespace SQL_Format
 			for(int i = 1; i < identifiers.Count; i++)
 				result = $"{result}.{Identifier2Value(identifiers[i])}";
 			return result;
+		}
+
+		public static string Identifiers2ValueLast(IList<Identifier> identifiers)
+		{
+			if ((identifiers == null) || (identifiers.Count == 0)) return null;
+			return Identifier2Value(identifiers[identifiers.Count - 1]);
 		}
 
 		public static string Column2TypeStr(ColumnDefinition columnDefinition)
@@ -42,6 +50,58 @@ namespace SQL_Format
 			}
 
 			return result;
+		}
+
+		public static bool ColumnIsDefault(ColumnDefinition columnDefinition)
+		{
+			if (columnDefinition.IdentityOptions != null)
+			{
+				return true;
+			}
+			if (columnDefinition.DefaultConstraint != null)
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		public static bool ColumnIsIdentity(ColumnDefinition columnDefinition)
+		{
+			if (columnDefinition.IdentityOptions != null)
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		public static bool ColumnIsPrimaryKey(ColumnDefinition columnDefinition, TableDefinition definition)
+		{
+			if ((columnDefinition.Index != null) && (columnDefinition.Index.IndexType != null) && (columnDefinition.Index.IndexType.IndexTypeKind == IndexTypeKind.Clustered))
+			{
+				return true;
+			}
+
+			if ((definition.TableConstraints != null) && (definition.TableConstraints.Count > 0))
+			{
+				string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+				foreach (var c in definition.TableConstraints)
+				{
+					if (!(c is UniqueConstraintDefinition)) continue;
+					if (((UniqueConstraintDefinition)c).IsPrimaryKey)
+					{
+
+						foreach (var co in ((UniqueConstraintDefinition)c).Columns)
+						{
+							string s = Identifiers2ValueLast(co.Column.MultiPartIdentifier.Identifiers);
+							if (s.ToLowerInvariant() == ident.ToLowerInvariant()) return true;
+						}
+					}
+				}
+			}
+
+			return false;
 		}
 	}
 }

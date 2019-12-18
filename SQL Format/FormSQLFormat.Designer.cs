@@ -88,6 +88,7 @@
 			this.MSource.Dock = System.Windows.Forms.DockStyle.Fill;
 			this.MSource.Font = new System.Drawing.Font("Courier New", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(204)));
 			this.MSource.Location = new System.Drawing.Point(0, 0);
+			this.MSource.MaxLength = 1000000;
 			this.MSource.Multiline = true;
 			this.MSource.Name = "MSource";
 			this.MSource.ScrollBars = System.Windows.Forms.ScrollBars.Both;
