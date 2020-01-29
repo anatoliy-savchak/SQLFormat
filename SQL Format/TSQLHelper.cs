@@ -76,12 +76,21 @@ namespace SQL_Format
 			return false;
 		}
 
-		public static bool ColumnIsPrimaryKey(ColumnDefinition columnDefinition, TableDefinition definition)
+		public static bool ColumnIsPrimaryKey(ColumnDefinition columnDefinition, TableDefinition definition, bool AllowUnique = false)
 		{
 			if ((columnDefinition.Index != null) && (columnDefinition.Index.IndexType != null) && (columnDefinition.Index.IndexType.IndexTypeKind == IndexTypeKind.Clustered))
 			{
 				return true;
 			}
+
+            if ((AllowUnique) && (columnDefinition.Constraints.Count > 0))
+            {
+                foreach(var c in columnDefinition.Constraints)
+                {
+                    if (c is Microsoft.SqlServer.TransactSql.ScriptDom.UniqueConstraintDefinition)
+                        return true;
+                }
+            }
 
 			if ((definition.TableConstraints != null) && (definition.TableConstraints.Count > 0))
 			{

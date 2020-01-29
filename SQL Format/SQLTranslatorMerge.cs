@@ -76,9 +76,18 @@ namespace SQL_Format
 				checkBox.CheckedChanged += changedHandler;
 				Parent.Controls.Add(checkBox);
 			}
-		}
+            {
 
-		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
+                CheckBox checkBox = new CheckBox();
+                checkBox.Text = "use output";
+                checkBox.Name = "use_output";
+                checkBox.Checked = false;
+                checkBox.CheckedChanged += changedHandler;
+                Parent.Controls.Add(checkBox);
+            }
+        }
+
+        public override string TranslateExt(CreateTableStatement createTableStatement, object options)
 		{
 			TableDefinition tableDefinition = createTableStatement.Definition;
 			string optionAllias0 = null;
@@ -130,7 +139,17 @@ namespace SQL_Format
 				}
 			}
 
-			string optionAllias = optionAllias0;
+            bool use_output = false;
+            if (options is Control)
+            {
+                var r = ((Control)options).Controls.Find("use_output", true);
+                if (r.Length > 0)
+                {
+                    use_output = (r[0] as CheckBox).Checked;
+                }
+            }
+
+            string optionAllias = optionAllias0;
 			string optionAlliasDest = optionAlliasDest0;
 			if (!String.IsNullOrEmpty(optionAllias)) optionAllias = optionAllias + '.';
 			if (!String.IsNullOrEmpty(optionAlliasDest)) optionAlliasDest = optionAlliasDest + '.';
@@ -141,8 +160,28 @@ namespace SQL_Format
 
 			StringBuilder result = new StringBuilder();
 			string sep = null;
-			// with src as
-			{
+
+            if (use_output)
+            {
+                result.Append($"declare @mergeOutput table([action] nvarchar(10)");
+                sep = ", ";
+                foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+                {
+                    string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+                    if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition, true)) continue;
+                    string ctype = TSQLHelper.Column2TypeStr(columnDefinition);
+                    result.Append($"{sep}{ident} {ctype}");
+                    if (String.IsNullOrEmpty(sep))
+                    {
+                        sep = ", ";
+                    }
+                }
+                result.Append($");{Environment.NewLine}");
+
+            }
+
+            // with src as
+            {
 				result.Append($";with src as ({Environment.NewLine}");
 				if (!use_star)
 				{
@@ -189,10 +228,12 @@ namespace SQL_Format
 				result.Append($"merge targ as {optionAlliasDest0}{Environment.NewLine}");
 				result.Append($"using src as {optionAllias0}{Environment.NewLine}");
 				sep = null;
+                bool onFound = false;
 				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 				{
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
 					if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition)) continue;
+                    onFound = true;
 					if (String.IsNullOrEmpty(sep)) {
 						sep = ", ";
 						result.Append($"on (");
@@ -202,7 +243,26 @@ namespace SQL_Format
 					}
 					result.Append($"{optionAlliasDest}{ident} = {optionAllias}{ident}");
 				}
-				if (String.IsNullOrEmpty(sep))
+                if (!onFound)
+                    foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+                    {
+                        string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+                        if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition, true)) continue;
+                        onFound = true;
+                        if (String.IsNullOrEmpty(sep))
+                        {
+                            sep = ", ";
+                            result.Append($"on (");
+                        }
+                        else
+                        {
+                            result.Append($" and ");
+                        }
+                        result.Append($"{optionAlliasDest}{ident} = {optionAllias}{ident}");
+                    }
+
+
+                if (String.IsNullOrEmpty(sep))
 				{
 					result.Append($"on ({optionAlliasDest}{firstColumnIdent} = {optionAllias}{firstColumnIdent}){Environment.NewLine}");
 				} else
@@ -219,7 +279,7 @@ namespace SQL_Format
 				{
 					if (TSQLHelper.ColumnIsIdentity(columnDefinition)) continue;
 					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-					result.Append($"\t\t{sep}{ident}{Environment.NewLine}");
+                    result.Append($"\t\t{sep}{ident}{Environment.NewLine}");
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 				result.Append($"\t){Environment.NewLine}");
@@ -287,7 +347,38 @@ namespace SQL_Format
 				result.Append($"\tdelete{Environment.NewLine}");
 			}
 
-			result.Append($";{Environment.NewLine}");
+            if (use_output)
+            {
+                result.Append($"output $action");
+                sep = ", ";
+                foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+                {
+                    string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+                    if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition, true)) continue;
+                    result.Append($"{sep}inserted.{ident}");
+                    if (String.IsNullOrEmpty(sep))
+                    {
+                        sep = ", ";
+                    }
+                }
+                result.Append($"{Environment.NewLine}");
+
+                result.Append($"into @mergeOutput(action");
+                sep = ", ";
+                foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+                {
+                    string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+                    if (!TSQLHelper.ColumnIsPrimaryKey(columnDefinition, tableDefinition, true)) continue;
+                    result.Append($"{sep}{ident}");
+                    if (String.IsNullOrEmpty(sep))
+                    {
+                        sep = ", ";
+                    }
+                }
+                result.Append($"){Environment.NewLine}");
+            }
+
+            result.Append($";{Environment.NewLine}");
 			return result.ToString();
 		}
 	}
