@@ -40,9 +40,16 @@ namespace SQL_Format
 				checkBox.CheckedChanged += changedHandler;
 				Parent.Controls.Add(checkBox);
 			}
-		}
+            {
+                CheckBox checkBox = new CheckBox();
+                checkBox.Text = "Forward Comma";
+                checkBox.Name = "option_forward_comma";
+                checkBox.CheckedChanged += changedHandler;
+                Parent.Controls.Add(checkBox);
+            }
+        }
 
-		public override string Translate(TableDefinition tableDefinition, object options)
+        public override string Translate(TableDefinition tableDefinition, object options)
 		{
 			string optionAllias = null;
 			if (options is Control)
@@ -64,15 +71,26 @@ namespace SQL_Format
 					bOptionInline = (r[0] as CheckBox).Checked;
 				}
 			}
-			string sColumnSeparator = Environment.NewLine;
+            bool option_forward_comma = false;
+            if (options is Control)
+            {
+                var r = ((Control)options).Controls.Find("option_forward_comma", true);
+                if (r.Length > 0)
+                {
+                    option_forward_comma = (r[0] as CheckBox).Checked;
+                }
+            }
+            string sColumnSeparator = Environment.NewLine;
 			if (bOptionInline) sColumnSeparator = " ";
 
 			StringBuilder result = new StringBuilder();
 			foreach(ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
 			{
 				string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
-				result.Append($"{optionAllias}{ident},{sColumnSeparator}");
-			}
+                if (!option_forward_comma)
+				    result.Append($"{optionAllias}{ident},{sColumnSeparator}");
+                else result.Append($"{sColumnSeparator}, {optionAllias}{ident}");
+            }
 
 			return result.ToString();
 		}
