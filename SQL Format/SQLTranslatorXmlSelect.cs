@@ -65,10 +65,45 @@ namespace SQL_Format
 				checkBox.CheckedChanged += changedHandler;
 				Parent.Controls.Add(checkBox);
 			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "insert";
+				checkBox.Name = "option_insert";
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "identity ins";
+				checkBox.Name = "option_identity_insert";
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "table name in path";
+				checkBox.Name = "option_tab_path";
+				checkBox.CheckedChanged += changedHandler;
+				checkBox.AutoSize = true;
+				Parent.Controls.Add(checkBox);
+			}
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "output";
+				checkBox.Name = "option_output";
+				checkBox.CheckedChanged += changedHandler;
+				checkBox.AutoSize = true;
+				Parent.Controls.Add(checkBox);
+			}
 		}
 
-		public override string Translate(TableDefinition tableDefinition, object options)
+		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
 		{
+			TableDefinition tableDefinition = createTableStatement.Definition;
 			string optionSource0 = null;
 			if (options is Control)
 			{
@@ -108,8 +143,45 @@ namespace SQL_Format
 				}
 			}
 
+			bool option_insert = GetOptionBoolDef("option_insert", options, false);
+			bool option_identity_insert = GetOptionBoolDef("option_identity_insert", options, false);
+			bool option_tab_path = GetOptionBoolDef("option_tab_path", options, false);
+			bool option_output = GetOptionBoolDef("option_output", options, false);
+
+			string tableName = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+			string tableName0 = TSQLHelper.Identifiers2ValueLast(createTableStatement.SchemaObjectName.Identifiers);
+
 			StringBuilder result = new StringBuilder();
 			string sep = null;
+
+			if (option_identity_insert)
+			{
+				result.Append($"set identity_insert {tableName} on;{Environment.NewLine}{Environment.NewLine}");
+			}
+			// insert into
+			if (option_insert)
+			{
+				string sColumnSeparator = Environment.NewLine;
+				bool bOptionDefault = true;
+				string columnIdent = "\t";
+
+				result.Append($"insert into {tableName}({sColumnSeparator}");
+				sep = null;
+				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				{
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
+					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+					//if (!bOptionInline)
+					result.Append($"{columnIdent}{sep}{ident}{sColumnSeparator}");
+					//else result.Append($"{sep}{ident}{sColumnSeparator}");
+					if (String.IsNullOrEmpty(sep)) sep = ", ";
+				}
+				result.Append($"){Environment.NewLine}");
+				if (option_output)
+					result.Append($"output '{tableName0}' as [Table_{tableName0}], inserted.*{Environment.NewLine}");
+			}
+
+
 			result.Append($"select{Environment.NewLine}");
 			// rows
 			{
@@ -135,7 +207,15 @@ namespace SQL_Format
 					if (String.IsNullOrEmpty(sep)) sep = ", ";
 				}
 			}
-			result.Append($"from @{optionSource0}.nodes('/root[1]/data[1]/row') as t({optionRowAlias0}){Environment.NewLine}");
+			string path = "/root[1]/data[1]/row";
+			if (option_tab_path) path = $"/root[1]/{tableName0}/row";
+			result.Append($"from @{optionSource0}.nodes('{path}') as t({optionRowAlias0}){Environment.NewLine}");
+
+			if (option_identity_insert)
+			{
+				result.Append($"{Environment.NewLine}set identity_insert {tableName} off;");
+			}
+
 			return result.ToString();
 		}
 	}
