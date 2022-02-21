@@ -94,7 +94,16 @@ namespace SQL_Format
 				checkBox.CheckedChanged += changedHandler;
 				Parent.Controls.Add(checkBox);
 			}
-			
+
+			{
+				CheckBox checkBox = new CheckBox();
+				checkBox.Text = "except";
+				checkBox.Name = "option_except";
+				checkBox.Checked = false;
+				checkBox.CheckedChanged += changedHandler;
+				Parent.Controls.Add(checkBox);
+			}
+
 		}
 
 		public override string TranslateExt(CreateTableStatement createTableStatement, object options)
@@ -168,6 +177,16 @@ namespace SQL_Format
 				if (r.Length > 0)
 				{
 					bNotAlready = (r[0] as CheckBox).Checked;
+				}
+			}
+
+			bool bExcept = false;
+			if (options is Control)
+			{
+				var r = ((Control)options).Controls.Find("option_except", true);
+				if (r.Length > 0)
+				{
+					bExcept = (r[0] as CheckBox).Checked;
 				}
 			}
 
@@ -252,6 +271,29 @@ namespace SQL_Format
 					result.Append($" t.{ident} = {optionAllias}{ident}");
 				}
 				result.Append($")");
+			}
+
+			if (bExcept)
+			{
+				result.Append($"except{Environment.NewLine}");
+				result.Append($"select{keywordSep}");
+				sep = null;
+				foreach (ColumnDefinition columnDefinition in tableDefinition.ColumnDefinitions)
+				{
+					if (!bOptionDefault && TSQLHelper.ColumnIsDefault(columnDefinition)) continue;
+					string ident = TSQLHelper.Identifier2Value(columnDefinition.ColumnIdentifier);
+					if (bOptionExplicitNames)
+					{
+						result.Append($"{columnIdent}{sep}{ident} = {optionAllias}{ident}{sColumnSeparator}");
+					}
+					else
+					{
+						result.Append($"{columnIdent}{sep}{optionAllias}{ident}{sColumnSeparator}");
+					}
+					if (String.IsNullOrEmpty(sep)) sep = ", ";
+				}
+
+				result.Append($"{keywordSep}from {optionAllias0}{Environment.NewLine}");
 			}
 
 			result.Append($";");
