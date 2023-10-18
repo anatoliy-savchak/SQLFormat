@@ -26,6 +26,8 @@ namespace SQL_Format
 			this.AddOptionCheckBox("Produce SQL", "produce_sql", true, Parent, changedHandler);
             this.AddOptionCheckBox("SQL using CTE", "sql_cte", true, Parent, changedHandler);
             this.AddOptionCheckBox("nvarchar(max)", "sql_max", false, Parent, changedHandler);
+            this.AddOptionCheckBox("RowId", "sql_row_id", false, Parent, changedHandler);
+            this.AddOptionCheckBox("Create table", "sql_table", false, Parent, changedHandler);
         }
 
         public override string TranslateText(string text, object options)
@@ -83,94 +85,128 @@ namespace SQL_Format
 			{
 				var sql_cte = this.GetOptionBool("sql_cte", options);
                 var sql_max = this.GetOptionBool("sql_max", options);
-                
-                string jsonSql = json.Replace("'", "''");
+                var sql_row_id = this.GetOptionBool("sql_row_id", options);
+                var sql_table = this.GetOptionBool("sql_table", options);
 
                 StringBuilder sb = new StringBuilder();
 
-				if (sql_cte == true)
-				{
+                if (sql_table == true)
+                {
                     string indent = "\t";
-                    sb.AppendLine(";with js as (");
-                    sb.AppendLine($"{indent}select json = N'");
-                    sb.AppendLine(jsonSql);
-                    sb.AppendLine("')");
-
-					sb.AppendLine(", src as (");
-					sb.AppendLine($"{indent}select");
+                    sb.AppendLine("create table tbl(");
+                    if (sql_row_id == true)
+                        sb.AppendLine($"{indent}RowId int not null,");
                     {
-                        string fwComma = ", ";
                         int i = -1;
+                        int count = columns.Count;
                         foreach (var col in columns)
                         {
                             i++;
-                            fwComma = i > 0 ? ", " : "";
-
-                            sb.AppendLine($"{indent}\t{fwComma}[{col.Name}] = s.[{col.Name}]");
-                        }
-                    }
-                    sb.AppendLine("from js");
-                    sb.AppendLine("cross apply openjson(js.json) with (");
-                    {
-                        int i = -1;
-                        foreach (var col in columns)
-                        {
-                            i++;
-                            string fwComma = i > 0 ? ", " : "";
+                            string postComma = i < count-1 || sql_row_id == true ? "," : "";
                             string maxlen = sql_max == true ? "max" : col.MaxLen.ToString();
-                            sb.AppendLine($"{indent}{fwComma}[{col.Name}] nvarchar({maxlen}) '$.\"{col.Name}\"'");
+                            sb.AppendLine($"{indent}[{col.Name}] nvarchar({maxlen}) null{postComma}");
                         }
                     }
-                    sb.AppendLine($"{indent}) s");
-                    sb.AppendLine(")");
-                    sb.AppendLine("select");
-                    {
-                        string fwComma = ", ";
-                        int i = -1;
-                        foreach (var col in columns)
-                        {
-                            i++;
-                            fwComma = i > 0 ? ", " : "";
+                    if (sql_row_id == true)
+                        sb.AppendLine($"{indent}constraint pk_ primary key clustered(RowId)");
 
-                            sb.AppendLine($"{indent}{fwComma}[{col.Name}] = s.[{col.Name}]");
-                        }
-                    }
-                    sb.AppendLine("from src s");
+                    sb.AppendLine(")");
                 }
                 else
-				{
-					sb.AppendLine("declare @j nvarchar(max) = N'");
-					sb.AppendLine(jsonSql);
-					sb.AppendLine("';");
+                {
+                    string jsonSql = json.Replace("'", "''");
 
-					sb.AppendLine();
 
-					sb.AppendLine("select");
-					string indent = "\t";
-					string fwComma = ", ";
-					{
-						int i = -1;
-						foreach (var col in columns)
-						{
-							i++;
-							fwComma = i > 0 ? ", " : "";
+                    if (sql_cte == true)
+                    {
+                        string indent = "\t";
+                        sb.AppendLine(";with js as (");
+                        sb.AppendLine($"{indent}select json = N'");
+                        sb.AppendLine(jsonSql);
+                        sb.AppendLine("')");
 
-							sb.AppendLine($"{indent}{fwComma}t.[{col.Name}]");
-						}
-					}
-					sb.AppendLine("from openjson(@j) with (");
-					{
-						int i = -1;
-						foreach (var col in columns)
-						{
-							i++;
-							fwComma = i > 0 ? ", " : "";
-                            string maxlen = sql_max == true ? "max" : col.MaxLen.ToString();
-                            sb.AppendLine($"{indent}{fwComma}[{col.Name}] nvarchar({maxlen}) '$.\"{col.Name}\"'");
-						}
-					}
-					sb.AppendLine(") t");
-				}
+                        sb.AppendLine(", src as (");
+                        sb.AppendLine($"{indent}select");
+                        {
+                            string fwComma = ", ";
+                            int i = -1;
+                            foreach (var col in columns)
+                            {
+                                i++;
+                                fwComma = i > 0 ? ", " : "";
+
+                                sb.AppendLine($"{indent}\t{fwComma}[{col.Name}] = s.[{col.Name}]");
+                            }
+                        }
+                        if (sql_row_id == true)
+                            sb.AppendLine($"{indent}\t, RowId = row_number() over (order by (select 1))");
+                        sb.AppendLine("from js");
+                        sb.AppendLine("cross apply openjson(js.json) with (");
+                        {
+                            int i = -1;
+                            foreach (var col in columns)
+                            {
+                                i++;
+                                string fwComma = i > 0 ? ", " : "";
+                                string maxlen = sql_max == true ? "max" : col.MaxLen.ToString();
+                                sb.AppendLine($"{indent}{fwComma}[{col.Name}] nvarchar({maxlen}) '$.\"{col.Name}\"'");
+                            }
+                        }
+                        sb.AppendLine($"{indent}) s");
+                        sb.AppendLine(")");
+                        sb.AppendLine("select");
+                        {
+                            string fwComma = ", ";
+                            int i = -1;
+                            foreach (var col in columns)
+                            {
+                                i++;
+                                fwComma = i > 0 ? ", " : "";
+
+                                sb.AppendLine($"{indent}{fwComma}[{col.Name}] = s.[{col.Name}]");
+                            }
+                        }
+                        if (sql_row_id == true)
+                            sb.AppendLine($"{indent}, s.RowId");
+                        sb.AppendLine("from src s");
+                    }
+                    else
+                    {
+                        sb.AppendLine("declare @j nvarchar(max) = N'");
+                        sb.AppendLine(jsonSql);
+                        sb.AppendLine("';");
+
+                        sb.AppendLine();
+
+                        sb.AppendLine("select");
+                        string indent = "\t";
+                        string fwComma = ", ";
+                        {
+                            int i = -1;
+                            foreach (var col in columns)
+                            {
+                                i++;
+                                fwComma = i > 0 ? ", " : "";
+
+                                sb.AppendLine($"{indent}{fwComma}t.[{col.Name}]");
+                            }
+                        }
+                        if (sql_row_id == true)
+                            sb.AppendLine($"{indent}, RowId = row_number() over (order by (select 1))");
+                        sb.AppendLine("from openjson(@j) with (");
+                        {
+                            int i = -1;
+                            foreach (var col in columns)
+                            {
+                                i++;
+                                fwComma = i > 0 ? ", " : "";
+                                string maxlen = sql_max == true ? "max" : col.MaxLen.ToString();
+                                sb.AppendLine($"{indent}{fwComma}[{col.Name}] nvarchar({maxlen}) '$.\"{col.Name}\"'");
+                            }
+                        }
+                        sb.AppendLine(") t");
+                    }
+                }
                 result = sb.ToString();
 			}
 
