@@ -1,10 +1,12 @@
 ﻿using Microsoft.SqlServer.TransactSql.ScriptDom;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using static System.Windows.Forms.VisualStyles.VisualStyleElement.TextBox;
 
 namespace SQL_Format
 {
@@ -19,7 +21,12 @@ namespace SQL_Format
 			return Translate(createTableStatement.Definition, options);
 		}
 
-		public bool? GetOptionBool(string name, object options)
+        public virtual string TranslateText(string text, object options)
+        {
+			return null;
+        }
+
+        public bool? GetOptionBool(string name, object options)
         {
 			bool? result = null;
 			if (options is Control)
@@ -54,5 +61,44 @@ namespace SQL_Format
 			}
 			return result;
 		}
-	}
+
+		public object AddOptionTextBox(string caption, string name, string defaultValue, Control parent, EventHandler changedHandler)
+		{
+            Label label = new Label
+            {
+                Margin = new Padding(10, 3, 0, 0),
+                Text = $"{caption}: ",
+                MinimumSize = new Size(0, 17),
+                AutoSize = false
+            };
+            label.AutoSize = true;
+            parent.Controls.Add(label);
+
+            TextBox tbAlias = new TextBox
+            {
+                Text = defaultValue,
+                Name = name
+            };
+            tbAlias.TextChanged += changedHandler;
+			tbAlias.Tag = label;
+            parent.Controls.Add(tbAlias);
+
+			return tbAlias;
+        }
+
+        public object AddOptionCheckBox(string caption, string name, bool defaultValue, Control parent, EventHandler changedHandler)
+        {
+
+            CheckBox tbAlias = new CheckBox
+            {
+                Text = caption,
+				Checked = defaultValue,
+                Name = name
+            };
+            tbAlias.CheckedChanged += changedHandler;
+            parent.Controls.Add(tbAlias);
+
+            return tbAlias;
+        }
+    }
 }

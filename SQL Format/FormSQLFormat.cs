@@ -27,7 +27,8 @@ namespace SQL_Format
 			AddItemByClass(new SQLTranslatorInsert());
 			AddItemByClass(new SQLTranslatorSame());
 			AddItemByClass(new SQLTranslatorXmlSelect());
-		}
+            AddItemByClass(new TabTranslatorJson());
+        }
 
 		void AddItemByClass(SQLTranslator t)
 		{
@@ -77,7 +78,8 @@ namespace SQL_Format
 
 		void ParseSource()
 		{
-			using (StringReader sr = new StringReader(MSource.Text))
+			var text = MSource.Text;
+            using (StringReader sr = new StringReader(text))
 			{
 
 				IList<ParseError> errors;
@@ -97,19 +99,32 @@ namespace SQL_Format
 					}
 				}
 
-				foreach (var i in items)
+                
+
+                foreach (var i in items)
 				{
-					(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = "";
-					if (cts != null)
+                    var tb = (i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox);
+                    tb.Text = "";
+					var translatedByText = i.Item2.TranslateText(text, i.Item1);
+
+					if (translatedByText != null)
 					{
-						//string s = i.Item2.Translate(cts.Definition, i.Item1);
-						string s = i.Item2.TranslateExt(cts, i.Item1);
-						(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = s;
-					} else
+                        tb.Text = translatedByText;
+                    }
+					else
 					{
-						if ((errors != null) && (errors.Count > 0))
+						if (cts != null)
 						{
-							(i.Item1.Panel1.Controls.Find("textbox", true)[0] as TextBox).Text = errors[0].Message;
+							//string s = i.Item2.Translate(cts.Definition, i.Item1);
+							string s = i.Item2.TranslateExt(cts, i.Item1);
+							tb.Text = s;
+						}
+						else
+						{
+							if ((errors != null) && (errors.Count > 0))
+							{
+								tb.Text = errors[0].Message;
+							}
 						}
 					}
 				}
