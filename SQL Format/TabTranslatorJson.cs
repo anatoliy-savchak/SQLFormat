@@ -56,7 +56,7 @@ namespace SQL_Format
 					{
 						var col = new ColumnInfo()
 						{
-							Name = value,
+							Name = value.Trim(),
 						};
 						columns.Add(col);
 					}
