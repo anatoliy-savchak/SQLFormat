@@ -135,7 +135,7 @@ namespace SQL_Format
                             sb.AppendLine($"{indent}{fwComma}[{col.Name}] = s.[{col.Name}]");
                         }
                     }
-                    sb.AppendLine("from src");
+                    sb.AppendLine("from src s");
                 }
                 else
 				{
