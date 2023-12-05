@@ -112,10 +112,14 @@
     <Compile Include="FormSQLFormat.Designer.cs">
       <DependentUpon>FormSQLFormat.cs</DependentUpon>
     </Compile>
+    <Compile Include="Helpers\SqlBuilder.cs" />
+    <Compile Include="Helpers\SqlDomBuilderMerge.cs" />
+    <Compile Include="Helpers\SqlDomBuilder.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SQLTranslator.cs" />
     <Compile Include="SQLTranslatorInsert.cs" />
+    <Compile Include="SQLTranslatorCopy.cs" />
     <Compile Include="SQLTranslatorMerge.cs" />
     <Compile Include="SQLTranslatorSame.cs" />
     <Compile Include="TabTranslatorJson.cs" />

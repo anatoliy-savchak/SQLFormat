@@ -24,8 +24,9 @@ namespace SQL_Format
 			AddItemByClass(new SQLTranslatorSelect());
 			AddItemByClass(new SQLTranslatorUpdate());
 			AddItemByClass(new SQLTranslatorMerge());
-			AddItemByClass(new SQLTranslatorInsert());
-			AddItemByClass(new SQLTranslatorSame());
+            AddItemByClass(new SQLTranslatorCopy());
+            AddItemByClass(new SQLTranslatorInsert());
+            AddItemByClass(new SQLTranslatorSame());
 			AddItemByClass(new SQLTranslatorXmlSelect());
             AddItemByClass(new TabTranslatorJson());
         }
@@ -113,18 +114,14 @@ namespace SQL_Format
                     }
 					else
 					{
-						if (cts != null)
+						if ((errors != null) && (errors.Count > 0))
 						{
-							//string s = i.Item2.Translate(cts.Definition, i.Item1);
-							string s = i.Item2.TranslateExt(cts, i.Item1);
-							tb.Text = s;
+							tb.Text = errors[0].Message;
 						}
 						else
 						{
-							if ((errors != null) && (errors.Count > 0))
-							{
-								tb.Text = errors[0].Message;
-							}
+							string s = i.Item2.TranslateExt2(cts, i.Item1, text, script);
+							tb.Text = s;
 						}
 					}
 				}

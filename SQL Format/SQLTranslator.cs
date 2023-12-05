@@ -16,7 +16,14 @@ namespace SQL_Format
 		public abstract string GetCaption();
 		public abstract void SetupOptionsContent(Control Parent, EventHandler changedHandler);
 
-		public virtual string TranslateExt(CreateTableStatement createTableStatement, object options)
+        public virtual string TranslateExt2(CreateTableStatement createTableStatement, object options, string content, TSqlScript sqlScript)
+        {
+			if (createTableStatement != null)
+				return TranslateExt(createTableStatement, options);
+			return "";
+        }
+
+        public virtual string TranslateExt(CreateTableStatement createTableStatement, object options)
 		{
 			return Translate(createTableStatement.Definition, options);
 		}

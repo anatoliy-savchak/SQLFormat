@@ -30,6 +30,11 @@ namespace SQL_Format
             this.AddOptionCheckBox("Create table", "sql_table", false, Parent, changedHandler);
         }
 
+        public override string TranslateExt2(CreateTableStatement createTableStatement, object options, string content, TSqlScript sqlScript)
+        {
+            return TranslateText(content, options);
+        }
+
         public override string TranslateText(string text, object options)
         {
             text = text.Trim(Convert.ToChar(13));

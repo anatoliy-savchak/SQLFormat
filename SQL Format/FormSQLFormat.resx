@@ -118,15 +118,34 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="MSource.Text" xml:space="preserve">
-    <value>CREATE TABLE dbo.SomeTable(
-    ID                 INT            IDENTITY (1, 1) NOT NULL,
-    Name               VARCHAR (1000) NOT NULL,
-    fileSize                     BIGINT         NULL,
-    fileSize2                     BIGINT         NULL,
-    fileSize3                     BIGINT         NULL,
-    fileSize4                     BIGINT         NULL,
-    fileSize5                     BIGINT         NULL,
-    CONSTRAINT PK PRIMARY KEY CLUSTERED (ID ASC)
-);</value>
+    <value>CREATE TABLE [pipeline].[JobPaymentDocuments] (
+    [JobId]                                   UNIQUEIDENTIFIER NOT NULL,
+    [SupplierKey]                             NVARCHAR (301)   NOT NULL,
+    [DocPaymentRef]                           NVARCHAR (50)    NOT NULL,
+    [DocPaymentFactIndex]                     INT              CONSTRAINT [DF_JobPaymentDocuments_SupplierFactIndex] DEFAULT ((0)) NOT NULL,
+    [DocPaymentDocCount]                      INT              NULL,
+    [DocPaymentDocCountFraction]              FLOAT (53)       NULL,
+    [DocPaymentInvoiceRefs]                   NVARCHAR (MAX)   NULL,
+    [DocPaymentDate]                          DATETIME2 (7)    NULL,
+    [DocPaymentCurrency]                      VARCHAR (3)      NULL,
+    [DocPaymentFractionValueCurrencyFraction] DECIMAL (28, 10) NULL,
+    [DocPaymentValueCurrencyAgnostic]         DECIMAL (28, 2)  NULL,
+    [DocPaymentFractionValueCurrencyAgnostic] DECIMAL (28, 2)  NULL,
+    [DocPaymentValueCurrencyJob]              DECIMAL (26, 10) NULL,
+    [DocPaymentFractionValueCurrencyJob]      DECIMAL (26, 10) NULL,
+    CONSTRAINT [PK_JobPaymentDocuments_1] PRIMARY KEY CLUSTERED ([JobId] ASC, [SupplierKey] ASC, [DocPaymentFactIndex] ASC, [DocPaymentRef] ASC),
+    CONSTRAINT [FK_JobPaymentDocuments_JobPaymentFacts] FOREIGN KEY ([JobId], [DocPaymentFactIndex]) REFERENCES [pipeline].[JobPaymentFacts] ([JobId], [DocPaymentFactIndex]),
+    CONSTRAINT [FK_JobPaymentDocuments_Jobs] FOREIGN KEY ([JobId]) REFERENCES [pipeline].[Jobs] ([Id])
+);
+
+
+
+
+GO
+CREATE NONCLUSTERED INDEX [nci_wi_JobPaymentDocuments_FactIndexJobId]
+    ON [pipeline].[JobPaymentDocuments]([DocPaymentFactIndex] ASC, [JobId] ASC)
+    INCLUDE([DocPaymentDocCount]);
+
+</value>
   </data>
 </root>
