@@ -119,7 +119,7 @@ namespace SQL_Format.Helpers
                 if (trimDoubleEmptyLines && (prevLineWasEmpty && l == ""))
                     continue;
                 prevLineWasEmpty = l == "";
-                AppendLine(line);
+                AppendLine(line.Replace("\r", string.Empty));
             }
             return this;
         }

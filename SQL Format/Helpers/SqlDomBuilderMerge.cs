@@ -27,7 +27,7 @@ namespace SQL_Format.Helpers
             _sqlBuilder = sqlBuilder;
         }
 
-        public void ProduceMerge(CreateTableStatement sourceTable, CreateTableStatement targTable)
+        public void ProduceMerge(CreateTableStatement sourceTable, CreateTableStatement targTable, string targetTableNameFull = null)
         {
             var optionAllias0 = option_alias_src;
             var optionAlliasDest0 = option_alias_dest;
@@ -37,6 +37,7 @@ namespace SQL_Format.Helpers
             if (!String.IsNullOrEmpty(optionAllias)) optionAllias = optionAllias + '.';
             if (!String.IsNullOrEmpty(optionAlliasDest)) optionAlliasDest = optionAlliasDest + '.';
             string tableName = TSQLHelper.Identifiers2Value(targTable.SchemaObjectName.Identifiers);
+            if (targetTableNameFull == null) targetTableNameFull = tableName;
 
 
             var result = this._sqlBuilder;
@@ -95,7 +96,7 @@ namespace SQL_Format.Helpers
                 {
                     result.AppendLine($"select *");
                 }
-                result.AppendLine($"from {tableName} {optionAlliasDest0}");
+                result.AppendLine($"from {targetTableNameFull} {optionAlliasDest0}");
                 if (!string.IsNullOrEmpty(whereLineDest))
                     result.AppendLine(whereLineDest);
                 result.Unindent()
