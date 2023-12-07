@@ -223,20 +223,41 @@ namespace SQL_Format.Helpers
             {
                 var info = firstColumns[i];
                 _sqlBuilder.AppendLine($"while 1=1 -- {info.ColumnName}").AppendBegin();
-                _sqlBuilder.AppendLine($"set {info.VarNameLastValue} = (").Indent()
-                    .AppendLine($"select top (1) t.{info.ColumnName}")
-                    .AppendLine($"from {sourceTableNameFull} t")
-                    .Append($"where ");
-                for (int j = i-1; j > -1; j--)
-                {
-                    _sqlBuilder.Append($"({firstColumns[j].VarNameLastValue} = t.{firstColumns[j].ColumnName}) and ", true);
-                }
-                _sqlBuilder.Append($"({info.VarNameLastValue} is null or t.{info.ColumnName} > {info.VarNameLastValue})", true)
-                    .AppendLine("", true)
-                    .AppendLine("order by 1 asc").Unindent().AppendLine(");").NL()
-                    ;
 
-                //_sqlBuilder.AppendLine($"if @@rowcount = 0").AppendBegin().AppendLine("break;").AppendEnd().NL();
+                _sqlBuilder.AppendLine($"if {info.VarNameLastValue} is null").AppendBegin();
+                {
+                    _sqlBuilder.AppendLine($"set {info.VarNameLastValue} = (").Indent()
+                        .AppendLine($"select top (1) t.{info.ColumnName}")
+                        .AppendLine($"from {sourceTableNameFull} t")
+                        .Append($"where ");
+                    for (int j = i - 1; j > -1; j--)
+                    {
+                        _sqlBuilder.Append($"({firstColumns[j].VarNameLastValue} = t.{firstColumns[j].ColumnName}) and ", true);
+                    }
+                    _sqlBuilder.Append($"(1=1)", true)
+                        .AppendLine("", true)
+                        .AppendLine("order by 1 asc").Unindent().AppendLine(");").NL()
+                        ;
+                    _sqlBuilder.AppendEnd() ;
+                }
+                _sqlBuilder.AppendLine("else").AppendBegin();
+                {
+
+                    _sqlBuilder.AppendLine($"set {info.VarNameLastValue} = (").Indent()
+                        .AppendLine($"select top (1) t.{info.ColumnName}")
+                        .AppendLine($"from {sourceTableNameFull} t")
+                        .Append($"where ");
+                    for (int j = i - 1; j > -1; j--)
+                    {
+                        _sqlBuilder.Append($"({firstColumns[j].VarNameLastValue} = t.{firstColumns[j].ColumnName}) and ", true);
+                    }
+                    _sqlBuilder.Append($"(t.{info.ColumnName} > {info.VarNameLastValue})", true)
+                        .AppendLine("", true)
+                        .AppendLine("order by 1 asc").Unindent().AppendLine(");").NL()
+                        ;
+                    _sqlBuilder.AppendEnd();
+                }
+
                 _sqlBuilder.AppendLine($"if {info.VarNameLastValue} is null").AppendBegin().AppendLine("break;").AppendEnd().NL();
 
 
