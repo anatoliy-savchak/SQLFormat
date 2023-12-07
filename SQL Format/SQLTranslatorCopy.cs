@@ -19,10 +19,12 @@ namespace SQL_Format
 
 		public override void SetupOptionsContent(Control Parent, EventHandler changedHandler)
 		{
+            this.AddOptionTextBox("Omit Last Key Count", "omitLastKeyCount", "1", Parent, changedHandler);
         }
 
         public override string TranslateExt2(CreateTableStatement createTableStatement, object options, string content, TSqlScript sqlScript)
         {
+            int omitLastKeyCount = this.GetOptionInt("omitLastKeyCount", options) ?? 0;
             SqlBuilder result = new SqlBuilder();
 			SqlDomBuilder sqlDomBuilder = new SqlDomBuilder(sqlScript, result);
             SqlDomBuilderMerge sqlDomBuilderMerge = new SqlDomBuilderMerge(result);
@@ -61,7 +63,7 @@ namespace SQL_Format
                         result.AppendEnd();
                     }
                     
-                    sqlDomBuilder.ProduceCopyTable(createTableStatement, "9", targetTableNameFull: tableNameFullNew);
+                    sqlDomBuilder.ProduceCopyTable(createTableStatement, "9", targetTableNameFull: tableNameFullNew, omitLastKeyCount: omitLastKeyCount);
 
 
                     result.AppendEnd(SqlBuilder.END_TRY, false);

@@ -139,7 +139,7 @@ namespace SQL_Format.Helpers
             public string VarNameLastValue;
         }
 
-        public void ProduceCopyTable(CreateTableStatement createTableStatement, string varSuffix, string targetTableNameFull = null)
+        public void ProduceCopyTable(CreateTableStatement createTableStatement, string varSuffix, string targetTableNameFull = null, int omitLastKeyCount = 0)
         {
             string sourceTableNameFull = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
             string destTableNameFull = targetTableNameFull != null ? targetTableNameFull : TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
@@ -164,7 +164,7 @@ namespace SQL_Format.Helpers
                     colInfo.ColumnDefinition = column;
                     colInfo.ColumnTypeStr = TSQLHelper.Column2TypeStr(column);
                     colInfo.VarNameLastValue = $"@Last{colName}{varSuffix}";
-                    if (i == clusteredKey.Columns.Count - 1)
+                    if (i == clusteredKey.Columns.Count - 1 - omitLastKeyCount)
                     {
                         lastColumnN = colInfo;
                         break;
@@ -253,8 +253,11 @@ namespace SQL_Format.Helpers
             {
                 _sqlBuilder.AppendLine($"truncate table {batchtableName};").NL();
 
+                string distinct = omitLastKeyCount > 0 ? "distinct " : "";
                 _sqlBuilder.AppendLine($"insert into {batchtableName}({lastColumn.ColumnName})")
                     .AppendLine($"select top ({batchSizeName}) t.{lastColumn.ColumnName}")
+                    .AppendLine($"from (").Indent()
+                    .AppendLine($"select {distinct}t.{lastColumn.ColumnName}")
                     .AppendLine($"from {sourceTableNameFull} t")
                     .Append($"where ");
                 foreach(var col in firstColumns)
@@ -264,6 +267,7 @@ namespace SQL_Format.Helpers
 
                 _sqlBuilder.Append($"({lastColumn.VarNameLastValue} is null or t.{lastColumn.ColumnName} > {lastColumn.VarNameLastValue})", true)
                     .AppendLine("", true)
+                    .Unindent().AppendLine(") t")
                     .AppendLine("order by 1 asc;").NL()
                     ;
 

@@ -69,7 +69,22 @@ namespace SQL_Format
 			return result;
 		}
 
-		public object AddOptionTextBox(string caption, string name, string defaultValue, Control parent, EventHandler changedHandler)
+
+        public int? GetOptionInt(string name, object options)
+        {
+            int? result = null;
+            if (options is Control)
+            {
+                var r = ((Control)options).Controls.Find(name, true);
+                if (r.Length > 0)
+                {
+                    if (int.TryParse((r[0] as TextBox).Text, out var i)) result = i;
+                }
+            }
+            return result;
+        }
+
+        public object AddOptionTextBox(string caption, string name, string defaultValue, Control parent, EventHandler changedHandler)
 		{
             Label label = new Label
             {
