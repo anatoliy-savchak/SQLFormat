@@ -123,5 +123,20 @@ namespace SQL_Format.Helpers
             }
             return this;
         }
+
+        public SqlBuilder AppendLines(IEnumerable<string> lines, string separator = null, bool skipIdent = false)
+        {
+            string prev = null;
+            foreach (var line in lines)
+            {
+                if (prev != null)
+                    AppendLine(prev + separator, skipIdent: skipIdent);
+                prev = line;
+            }
+            if (prev != null)
+                AppendLine(prev, skipIdent: skipIdent);
+
+            return this;
+        }
     }
 }

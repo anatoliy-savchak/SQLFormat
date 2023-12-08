@@ -11,13 +11,14 @@ namespace SQL_Format.Helpers
     public class SqlDomBuilder
     {
         private readonly SqlBuilder _sqlBuilder;
+        public string VarMsgName;
 
         public SqlDomBuilder(TSqlScript script, SqlBuilder sqlBuilder)
         { 
             _sqlBuilder = sqlBuilder;
         }
 
-        public void ProduceFullTableRenameScript(TSqlScript script, string suffix)
+        public void ProduceFullTableRenameScript(TSqlScript script, string suffix, bool reverse = false)
         {
             string objName;
             string newName;
@@ -29,8 +30,8 @@ namespace SQL_Format.Helpers
                 {
                     if (statement is CreateTableStatement createTableStatement)
                     {
-                        string tableName = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
-                        string tableNewName = TSQLHelper.Identifiers2ValueLast(createTableStatement.SchemaObjectName.Identifiers) + suffix;
+                        string tableName = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers) + (reverse ? suffix : "");
+                        string tableNewName = TSQLHelper.Identifiers2ValueLast(createTableStatement.SchemaObjectName.Identifiers) + (!reverse ? suffix : "");
                         string schemaName = TSQLHelper.Identifier2Value(createTableStatement.SchemaObjectName.Identifiers[0]);
                         objType = OBJECT;
                         _sqlBuilder.AppendSpRename(tableName, tableNewName, objType, "TABLE").NL();
@@ -38,20 +39,20 @@ namespace SQL_Format.Helpers
                         foreach (ConstraintDefinition constraint in createTableStatement.Definition.TableConstraints)
                         {
                             //((UniqueConstraintDefinition)constraint)
-                            newName = TSQLHelper.Identifier2Value(constraint.ConstraintIdentifier);
-                            objName = $"{schemaName}.{newName}";
-                            newName += suffix;
+                            var conName = TSQLHelper.Identifier2Value(constraint.ConstraintIdentifier);
+                            objName = !reverse ? $"{schemaName}.{conName}" : $"{schemaName}.{conName + suffix}";
+                            newName = reverse ? conName : conName + suffix;
                             objType = OBJECT;
                             _sqlBuilder.AppendSpRename(objName, newName, objType, "constraint").NL();
-                            //_sqlBuilder.AppendLine($"{TSQLHelper.Identifier2Value(constraint.ConstraintIdentifier)}: {constraint.GetType().FullName}");
-
                         }
                     }
                     if (statement is CreateIndexStatement createIndexStatement)
                     {
-                        newName = TSQLHelper.Identifier2Value(createIndexStatement.Name);
-                        objName = $"{TSQLHelper.Identifiers2Value(createIndexStatement.OnName.Identifiers)}.{newName}";
-                        newName += suffix;
+                        var indexName = TSQLHelper.Identifier2Value(createIndexStatement.Name);
+                        var tableNameFull = TSQLHelper.Identifiers2Value(createIndexStatement.OnName.Identifiers);
+                        // we already renamed table
+                        objName = $"{tableNameFull + (!reverse ? suffix : "")}.{indexName}" + (reverse ? suffix : ""); ;
+                        newName = indexName + (!reverse ? suffix : "");
                         objType = "INDEX";
                         _sqlBuilder.AppendSpRename(objName, newName, objType, "INDEX").NL();
                     }
@@ -179,9 +180,6 @@ namespace SQL_Format.Helpers
                 lastColumn = lastColumnN.Value;
             }
 
-            string messageVarName = $"@msg{varSuffix}";
-            _sqlBuilder.AppendLine($"declare {messageVarName} nvarchar(2024);");
-
             int batchSize = 5000;
             string batchSizeName = $"@BatchSize{varSuffix}";
             _sqlBuilder.AppendLine($"declare {batchSizeName} int = {batchSize};");
@@ -198,7 +196,7 @@ namespace SQL_Format.Helpers
             string expectedBatchCountName = $"@ExpectedBatchCount{varSuffix}";
             _sqlBuilder.AppendLine($"declare {expectedBatchCountName} int = {totalCountName} / {batchSizeName} + 1;");
 
-            PrintErr($"concat('Total count:', {totalCountName}, ', batch count: ', {expectedBatchCountName}, ', size: ', {batchSizeName}, ' in {sourceTableNameFull}.')", messageVarName, false);
+            Print($"concat('Total count:', {totalCountName}, ', batch count: ', {expectedBatchCountName}, ', size: ', {batchSizeName}, ' in {sourceTableNameFull}.')", false);
 
             // last column via table
             string batchtableName = $"#batch{varSuffix}";
@@ -261,7 +259,7 @@ namespace SQL_Format.Helpers
                 _sqlBuilder.AppendLine($"if {info.VarNameLastValue} is null").AppendBegin().AppendLine("break;").AppendEnd().NL();
 
 
-                PrintErr($"concat('Processing {info.ColumnName}:', {info.VarNameLastValue})", messageVarName, false);
+                Print($"concat('Processing {info.ColumnName}:', {info.VarNameLastValue})", false);
                 if (i < firstColumns.Count - 1)
                 {
                     _sqlBuilder.AppendLine($"set {firstColumns[i+1].VarNameLastValue} = null;").NL();
@@ -300,7 +298,7 @@ namespace SQL_Format.Helpers
                     .Unindent().NL();
 
                 _sqlBuilder.AppendLine($"set {batchNumName} += 1;").NL();
-                PrintErr($"concat('Merge batch: ', {batchNumName}, ' / ', {batchSizeName})", messageVarName, false);
+                Print($"concat('Merge batch: ', {batchNumName}, ' / ', {batchSizeName})", false);
                 _sqlBuilder.AppendLine($"set {lastColumn.VarNameLastValue} = (select max(t.{lastColumn.ColumnName}) from {batchtableName} t);").NL();
 
                 SqlDomBuilderMerge sqlDomBuilderMerge = new SqlDomBuilderMerge(_sqlBuilder);
@@ -330,6 +328,59 @@ namespace SQL_Format.Helpers
         {
             if (addQuotes) msg = $"'{msg}'";
             _sqlBuilder.AppendLine($"set {varname} = {msg}; raiserror({varname}, 10, 1) with nowait;");
+        }
+
+        public SqlBuilder Print(string msg, bool addQuotes = true)
+        {
+            if (VarMsgName != null)
+                PrintErr(msg, this.VarMsgName, addQuotes);
+            return _sqlBuilder;
+        }
+
+        public void ProduceCopytableVerify(CreateTableStatement createTableStatement, string varSuffix, string sourcetTableNameFull = null, string targetTableNameFull = null)
+        {
+            string sourceTableNameFull = sourcetTableNameFull ?? TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+            string destTableNameFull = targetTableNameFull ?? TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+
+            UniqueConstraintDefinition clusteredKey = createTableStatement.Definition.TableConstraints.Where(c => c is UniqueConstraintDefinition uni && uni.Clustered == true).SingleOrDefault() as UniqueConstraintDefinition;
+            if (clusteredKey is null)
+            {
+                _sqlBuilder.AppendLine("Error: No clustered index!");
+                return;
+            }
+            var columns = new List<ColInfo>();
+            {
+                for (int i = 0; i < clusteredKey.Columns.Count; i++)
+                {
+                    var colName = TSQLHelper.Identifiers2Value(clusteredKey.Columns[i].Column.MultiPartIdentifier.Identifiers);
+                    ColumnDefinition column = createTableStatement.Definition.ColumnDefinitions.Where(c => TSQLHelper.Identifier2Value(c.ColumnIdentifier).ToLowerInvariant() == colName.ToLowerInvariant()).Single();
+                    var colInfo = new ColInfo();
+                    colInfo.Index = i;
+                    colInfo.ColumnName = colName;
+                    columns.Add(colInfo);
+                }
+            }
+
+            Print($"Comparing {sourceTableNameFull} with {destTableNameFull}...");
+
+            _sqlBuilder
+                .AppendLine("if exists(")
+                .Indent()
+                .AppendLine($"select * from {sourceTableNameFull} s")
+                .AppendLine($"full outer join {destTableNameFull} t on (")
+                .Indent()
+                .AppendLines(columns.Select(c => $"s.{c.ColumnName} = t.{c.ColumnName}"), " and")
+                .Unindent()
+                .AppendLine(")")
+                .AppendLine($"where s.{columns.First().ColumnName} is null or t.{columns.First().ColumnName} is null")
+                .Unindent()
+                .AppendLine(")")
+                .AppendBegin()
+                .AppendLine($";throw 51000, 'Differs {sourceTableNameFull} vs {destTableNameFull}!', 1;")
+                .AppendEnd(addSpaceafterwards: false);
+            _sqlBuilder.AppendLine("else").Indent();
+            Print($"Success comparing {sourceTableNameFull} with {destTableNameFull}");
+            _sqlBuilder.Unindent();
         }
     }
 }

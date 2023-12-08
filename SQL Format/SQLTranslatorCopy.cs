@@ -19,52 +19,91 @@ namespace SQL_Format
 
 		public override void SetupOptionsContent(Control Parent, EventHandler changedHandler)
 		{
-            this.AddOptionTextBox("Omit Last Key Count", "omitLastKeyCount", "1", Parent, changedHandler);
+            this.AddOptionTextBox("Var Suffix", "varSuffix", "11245U1", Parent, changedHandler);
+            this.AddOptionCheckBox("Use Loop", "useLoop", false, Parent, changedHandler);
+            this.AddOptionTextBox("Omit Last Key Count", "omitLastKeyCount", "0", Parent, changedHandler);
+            this.AddOptionCheckBox("Use Transaction", "useTransaction", true, Parent, changedHandler);
+            this.AddOptionCheckBox("Rollback", "useRollback", false, Parent, changedHandler);
         }
 
         public override string TranslateExt2(CreateTableStatement createTableStatement, object options, string content, TSqlScript sqlScript)
         {
             int omitLastKeyCount = this.GetOptionInt("omitLastKeyCount", options) ?? 0;
+            string varSuffix = this.GetOptionString("varSuffix", options) ?? "";
+            bool useLoop = this.GetOptionBoolDef("useLoop", options, false);
+            bool useTransaction = this.GetOptionBoolDef("useTransaction", options, false);
+            bool useRollback = this.GetOptionBoolDef("useRollback", options, false);
+
             SqlBuilder result = new SqlBuilder();
 			SqlDomBuilder sqlDomBuilder = new SqlDomBuilder(sqlScript, result);
-            SqlDomBuilderMerge sqlDomBuilderMerge = new SqlDomBuilderMerge(result);
+            
 
             string tableSuffix = "_new";
             result.TableNameFull = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
             result.TableName = TSQLHelper.Identifiers2ValueLast(createTableStatement.SchemaObjectName.Identifiers);
-            //string tableNameOld = result.TableName + tableSuffix;
-            //string tableNameFullOld = result.TableNameFull + tableSuffix;
             string tableNameNew = result.TableName + tableSuffix;
             string tableNameFullNew = result.TableNameFull + tableSuffix;
             {
 				result.AppendBegin(SqlBuilder.BEGIN_TRY);
 				{
-                    //sqlDomBuilderMerge.use_output = true;
-                    //sqlDomBuilderMerge.use_intesect = true;
+                    if (useTransaction) result.AppendLine($"begin tran;").NL();
 
-                    //sqlDomBuilderMerge.ProduceMerge(createTableStatement, createTableStatement);
-                    //sqlDomBuilderMerge.Test(createTableStatement);
-                    /*
-					result.AppendIf($"object_id('{tableNameFullOld}') is null").AppendBegin();
-					{
-						result.AppendLine("-- rename to old table");
-                        sqlDomBuilder.ProduceFullTableRenameContent(sqlScript, tableSuffix);
-
-                        result.AppendEnd();
-                    }
-                    */
+                    string messageVarName = $"@msg{varSuffix}";
+                    result.AppendLine($"declare {messageVarName} nvarchar(2024);").NL();
+                    sqlDomBuilder.VarMsgName = messageVarName;
+                    sqlDomBuilder.Print($"Running Script{varSuffix}.{result.TableNameFull}...").NL();
 
                     result.AppendIf($"object_id('{tableNameFullNew}') is null").AppendBegin();
                     {
-                        result.AppendLine("-- re-create table");
-                        //result.AppendText(content);
+                        result.AppendLine("-- create new table");
                         sqlDomBuilder.ProduceFullTableRenameContent(sqlScript, tableSuffix, content);
 
                         result.AppendEnd();
                     }
-                    
-                    sqlDomBuilder.ProduceCopyTable(createTableStatement, "9", targetTableNameFull: tableNameFullNew, omitLastKeyCount: omitLastKeyCount);
 
+                    if (useLoop)
+                    {
+                        sqlDomBuilder.ProduceCopyTable(createTableStatement, varSuffix, targetTableNameFull: tableNameFullNew, omitLastKeyCount: omitLastKeyCount);
+                    }
+                    else
+                    {
+                        SqlDomBuilderMerge sqlDomBuilderMerge = new SqlDomBuilderMerge(result);
+                        sqlDomBuilderMerge.use_intesect = true;
+                        sqlDomBuilder.Print($"Merging FULL table {tableNameFullNew}...");
+                        sqlDomBuilderMerge.ProduceMerge(createTableStatement, createTableStatement, tableNameFullNew);
+                    }
+
+                    result.AppendBegin();
+                    {
+                        result.AppendLine("-- rename source table to _old");
+                        sqlDomBuilder.ProduceFullTableRenameScript(sqlScript, "_old");
+                        result.AppendEnd();
+                    }
+
+                    result.AppendBegin();
+                    {
+                        result.AppendLine("-- rename new table to current");
+                        sqlDomBuilder.ProduceFullTableRenameScript(sqlScript, tableSuffix, reverse: true);
+
+                        result.AppendEnd();
+                    }
+
+                    sqlDomBuilder.ProduceCopytableVerify(createTableStatement, varSuffix, targetTableNameFull: result.TableNameFull + "_old");
+
+                    result.NL();
+                    sqlDomBuilder.Print("Dropping table {result.TableNameFull}_old...");
+                    result.AppendLine($"drop table if exists {result.TableNameFull}_old;").NL();
+
+                    if (useTransaction)
+                    {
+                        if (useRollback)
+                            result.AppendLine($"rollback;").NL();
+                        else
+                        {
+                            result.AppendLine($"commit;").NL();
+                            sqlDomBuilder.Print("Committed.");
+                        }
+                    }
 
                     result.AppendEnd(SqlBuilder.END_TRY, false);
                 }
