@@ -91,7 +91,7 @@ namespace SQL_Format.Helpers
         public SqlBuilder AppendCatchTypicalRollback()
         {
             AppendBegin(BEGIN_CATCH);
-            AppendLine($"if @@trancount > 0 rollback;");
+            AppendLine($"if @@trancount > 0 begin print('rollback');  rollback; end");
             AppendLine($";throw;");
             AppendEnd(BEGIN_END);
             return this;

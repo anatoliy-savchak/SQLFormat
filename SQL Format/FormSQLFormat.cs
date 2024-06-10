@@ -25,13 +25,17 @@ namespace SQL_Format
 			AddItemByClass(new SQLTranslatorUpdate());
 			AddItemByClass(new SQLTranslatorMerge());
             AddItemByClass(new SQLTranslatorCopy());
+            AddItemByClass(new SQLTranslatorCopySingle());
             AddItemByClass(new SQLTranslatorInsert());
             AddItemByClass(new SQLTranslatorSame());
 			AddItemByClass(new SQLTranslatorXmlSelect());
-            AddItemByClass(new TabTranslatorJson());
+            //AddItemByClass(new TabTranslatorJson());
+#if DEBUG
+            AddItemByClass(new SQLTranslatorMyScript());
+#endif
         }
 
-		void AddItemByClass(SQLTranslator t)
+        void AddItemByClass(SQLTranslator t)
 		{
 			int idx = TabCtrl.TabPages.Count;
 			TabCtrl.TabPages.Add(t.GetCaption());

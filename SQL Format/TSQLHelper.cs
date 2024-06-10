@@ -41,11 +41,12 @@ namespace SQL_Format
 			if (columnDefinition.DataType == null) return null;
 			string result = columnDefinition.DataType.Name.Identifiers[0].Value.ToLowerInvariant();
 			//+		Name	{Microsoft.SqlServer.TransactSql.ScriptDom.SchemaObjectName}	Microsoft.SqlServer.TransactSql.ScriptDom.SchemaObjectName
-			if (columnDefinition.DataType is ParameterizedDataTypeReference)
+			if (columnDefinition.DataType is ParameterizedDataTypeReference p)
 			{
-				if (((ParameterizedDataTypeReference)columnDefinition.DataType).Parameters.Count > 0)
+				if (p.Parameters.Count > 0)
 				{
-					result = $"{result}({((ParameterizedDataTypeReference)columnDefinition.DataType).Parameters[0].Value})";
+					var pars = string.Join(", ", p.Parameters.Select(s => s.Value));
+                    result += $"({pars})";
 				}
 			}
 
@@ -76,7 +77,24 @@ namespace SQL_Format
 			return false;
 		}
 
-		public static bool ColumnIsPrimaryKey(ColumnDefinition columnDefinition, TableDefinition definition, bool AllowUnique = false)
+        public static bool ColumnIsNullable(ColumnDefinition columnDefinition)
+        {
+			return columnDefinition.Constraints.Where(c => c is NullableConstraintDefinition nu && nu.Nullable == true).Any();
+        }
+
+        public static int ColumnDecimalPrecision(ColumnDefinition columnDefinition)
+        {
+            if (columnDefinition.DataType is ParameterizedDataTypeReference p)
+            {
+                if (p.Parameters.Count > 0)
+                {
+					return int.Parse(p.Parameters[0].Value);
+                }
+            }
+			return 0;
+        }
+
+        public static bool ColumnIsPrimaryKey(ColumnDefinition columnDefinition, TableDefinition definition, bool AllowUnique = false)
 		{
 			if ((columnDefinition.Index != null) && (columnDefinition.Index.IndexType != null) && (columnDefinition.Index.IndexType.IndexTypeKind == IndexTypeKind.Clustered))
 			{

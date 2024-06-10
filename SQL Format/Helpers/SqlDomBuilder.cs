@@ -45,6 +45,31 @@ namespace SQL_Format.Helpers
                             objType = OBJECT;
                             _sqlBuilder.AppendSpRename(objName, newName, objType, "constraint").NL();
                         }
+
+                        foreach (var colDef in createTableStatement.Definition.ColumnDefinitions)
+                        {
+                            foreach (var constraint in colDef.Constraints)
+                            {
+                                if (constraint.ConstraintIdentifier == null) continue;
+                                var conName = TSQLHelper.Identifier2Value(constraint.ConstraintIdentifier);
+                                objName = !reverse ? $"{schemaName}.{conName}" : $"{schemaName}.{conName + suffix}";
+                                newName = reverse ? conName : conName + suffix;
+                                objType = OBJECT;
+                                _sqlBuilder.AppendSpRename(objName, newName, objType, "constraint").NL();
+                            }
+
+                            {
+                                var constraint = colDef.DefaultConstraint;
+                                if (constraint == null || constraint.ConstraintIdentifier == null) continue;
+                                var conName = TSQLHelper.Identifier2Value(constraint.ConstraintIdentifier);
+                                objName = !reverse ? $"{schemaName}.{conName}" : $"{schemaName}.{conName + suffix}";
+                                newName = reverse ? conName : conName + suffix;
+                                objType = OBJECT;
+                                _sqlBuilder.AppendSpRename(objName, newName, objType, "constraint").NL();
+                            }
+
+                        }
+
                     }
                     if (statement is CreateIndexStatement createIndexStatement)
                     {
@@ -382,5 +407,93 @@ namespace SQL_Format.Helpers
             Print($"Success comparing {sourceTableNameFull} with {destTableNameFull}");
             _sqlBuilder.Unindent();
         }
+
+        public void ProduceCopyTableSingle(CreateTableStatement createTableStatement, string varSuffix, string targetTableNameFull = null)
+        {
+            string sourceTableNameFull = TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+            string destTableNameFull = targetTableNameFull != null ? targetTableNameFull : TSQLHelper.Identifiers2Value(createTableStatement.SchemaObjectName.Identifiers);
+
+            UniqueConstraintDefinition clusteredKey = createTableStatement.Definition.TableConstraints.Where(c => c is UniqueConstraintDefinition uni && uni.Clustered == true).SingleOrDefault() as UniqueConstraintDefinition;
+            if (clusteredKey is null)
+            {
+                _sqlBuilder.AppendLine("Error: No clustered index!");
+                return;
+            }
+            ColInfo keyColumn = new ColInfo();
+            {
+                var colName = TSQLHelper.Identifiers2Value(clusteredKey.Columns[0].Column.MultiPartIdentifier.Identifiers);
+                ColumnDefinition column = createTableStatement.Definition.ColumnDefinitions.Where(c => TSQLHelper.Identifier2Value(c.ColumnIdentifier).ToLowerInvariant() == colName.ToLowerInvariant()).Single();
+                keyColumn.Index = 0;
+                keyColumn.ColumnName = colName;
+                keyColumn.ColumnDefinition = column;
+                keyColumn.ColumnTypeStr = TSQLHelper.Column2TypeStr(column);
+                keyColumn.VarNameLastValue = $"@Key{varSuffix}";
+            }
+
+            string AffectedIterationName = $"@AffectedIteration{varSuffix}";
+            _sqlBuilder.AppendLine($"declare {AffectedIterationName} int;");
+
+            string numName = $"@i{varSuffix}";
+            _sqlBuilder.AppendLine($"declare {numName} int = 0;");
+
+            string totalCountName = $"@TotalCount{varSuffix}";
+            _sqlBuilder.AppendLine($"declare {totalCountName} int = (select count(*) from {sourceTableNameFull} with (nolock));").NL();
+
+
+            // last column via table
+            string keysTableName = $"#keys{varSuffix}";
+            _sqlBuilder.AppendLine($"drop table if exists {keysTableName};")
+                .AppendLine($"create table {keysTableName}(")
+                .Indent()
+                .AppendLine($"{keyColumn.ColumnName} {keyColumn.ColumnTypeStr} not null primary key clustered")
+                .Unindent()
+                .AppendLine(");").NL();
+
+
+            _sqlBuilder.AppendLine($"declare {keyColumn.VarNameLastValue} {keyColumn.ColumnTypeStr};");
+
+            _sqlBuilder.NL();
+            _sqlBuilder.AppendLine($"insert into {keysTableName}({keyColumn.ColumnName})");
+            _sqlBuilder.AppendLine($"select distinct t.{keyColumn.ColumnName}");
+            _sqlBuilder.AppendLine($"from {sourceTableNameFull} t with (nolock);").NL();
+
+            string loopCountName = $"@LoopCount{varSuffix}";
+            _sqlBuilder.AppendLine($"declare {loopCountName} int = @@rowcount;");
+
+            Print($"concat('Total count:', {totalCountName}, ', loop count: ', {loopCountName}, ' in {sourceTableNameFull}.')", false);
+            _sqlBuilder.NL();
+
+            _sqlBuilder.AppendLine($"while 1=1").AppendBegin();
+            {
+                _sqlBuilder.AppendLine($"set {numName} += 1;").NL();
+
+                _sqlBuilder.AppendLine($"set {keyColumn.VarNameLastValue} = (").Indent()
+                    .AppendLine($"select top (1) t.{keyColumn.ColumnName}")
+                    .AppendLine($"from {keysTableName} t")
+                    .AppendLine($"where {keyColumn.VarNameLastValue} is null or t.{keyColumn.ColumnName} > {keyColumn.VarNameLastValue}")
+                    .AppendLine($"order by 1 asc")
+                    .Unindent().AppendLine(");").NL();
+
+                _sqlBuilder.AppendLine($"if {keyColumn.VarNameLastValue} is null").AppendBegin().AppendLine("break;").AppendEnd().NL();
+
+
+                Print($"concat('Processing ', {numName},' / ', {loopCountName}, ', {keyColumn.ColumnName}: ', {keyColumn.VarNameLastValue}, ' ...')", false);
+
+                _sqlBuilder.AppendLine($"insert into {destTableNameFull}(")
+                    .Indent()
+                    .AppendLines(createTableStatement.Definition.ColumnDefinitions.Select(c => TSQLHelper.Identifier2Value(c.ColumnIdentifier)), ",")
+                    .Unindent()
+                    .AppendLine(")")
+                    .AppendLine($"select ")
+                    .Indent()
+                    .AppendLines(createTableStatement.Definition.ColumnDefinitions.Select(c => $"t.{TSQLHelper.Identifier2Value(c.ColumnIdentifier)}"), ",")
+                    .Unindent()
+                    .AppendLine($"from {sourceTableNameFull} t")
+                    .AppendLine($"where t.{keyColumn.ColumnName} = {keyColumn.VarNameLastValue};").NL();
+
+            }
+            _sqlBuilder.AppendEnd($"end");
+        }
+
     }
 }

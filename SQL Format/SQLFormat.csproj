@@ -118,6 +118,8 @@
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SQLTranslator.cs" />
+    <Compile Include="SQLTranslatorCopySingle.cs" />
+    <Compile Include="SQLTranslatorMyScript.cs" />
     <Compile Include="SQLTranslatorInsert.cs" />
     <Compile Include="SQLTranslatorCopy.cs" />
     <Compile Include="SQLTranslatorMerge.cs" />
